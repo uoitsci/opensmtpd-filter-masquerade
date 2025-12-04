@@ -69,13 +69,6 @@ jobs:
               -p /usr/local \
               "${PKGNAME}.tgz"
 
-            mv "${PKGNAME}.tgz" /tmp/
-
-      - name: Copy package from VM
-        run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          cp /tmp/opensmtpd-filter-masquerade-${VERSION}.tgz .
-
       - name: Create source tarball
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
