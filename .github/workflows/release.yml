@@ -75,6 +75,23 @@ jobs:
           git archive --format=tar.gz --prefix="opensmtpd-filter-masquerade-${VERSION}/" \
             -o "opensmtpd-filter-masquerade-${VERSION}-src.tar.gz" HEAD
 
+      - name: Prepare GitHub Pages
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          mkdir -p pages/packages
+          cp "opensmtpd-filter-masquerade-${VERSION}.tgz" pages/packages/
+          cp "opensmtpd-filter-masquerade-${VERSION}-src.tar.gz" pages/packages/
+          # Create latest symlink
+          cd pages/packages
+          ln -sf "opensmtpd-filter-masquerade-${VERSION}.tgz" opensmtpd-filter-masquerade-latest.tgz
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./pages
+          keep_files: true
+
       - name: Create Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
@@ -83,6 +100,17 @@ jobs:
             opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}.tgz
             opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}-src.tar.gz
           generate_release_notes: true
+          body: |
+            ## Installation
+
+            ```
+            pkg_add -D unsigned https://uoitsci.github.io/opensmtpd-filter-masquerade/packages/opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}.tgz
+            ```
+
+            Or install the latest version:
+            ```
+            pkg_add -D unsigned https://uoitsci.github.io/opensmtpd-filter-masquerade/packages/opensmtpd-filter-masquerade-latest.tgz
+            ```
 
       - name: Create test release
         if: github.event_name == 'workflow_dispatch'
@@ -97,7 +125,8 @@ jobs:
           body: |
             Test build - not for production use.
 
-            Install with:
+            ## Installation
+
             ```
-            pkg_add https://github.com/uoitsci/opensmtpd-filter-masquerade/releases/download/v${{ steps.version.outputs.VERSION }}/opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}.tgz
+            pkg_add -D unsigned https://uoitsci.github.io/opensmtpd-filter-masquerade/packages/opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}.tgz
             ```
