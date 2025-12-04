@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '0.0.0-test'
+
+jobs:
+  build-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build OpenBSD package
+        uses: vmactions/openbsd-vm@v1
+        with:
+          release: "7.6"
+          usesh: true
+          run: |
+            set -e
+            VERSION="${{ steps.version.outputs.VERSION }}"
+            PKGNAME="opensmtpd-filter-masquerade-${VERSION}"
+
+            # Create staging directory with installed files
+            mkdir -p staging/libexec/smtpd
+            mkdir -p staging/man/man8
+
+            cp filter-masquerade staging/libexec/smtpd/
+            chmod 755 staging/libexec/smtpd/filter-masquerade
+            cp filter-masquerade.8 staging/man/man8/
+            chmod 644 staging/man/man8/filter-masquerade.8
+
+            # Create packing list
+            printf '%s\n' \
+              '@comment $OpenBSD$' \
+              'libexec/smtpd/filter-masquerade' \
+              '@man man/man8/filter-masquerade.8' \
+              > plist
+
+            # Create description file
+            cat > desc <<'DESC'
+            OpenSMTPD filter to rewrite sender headers for subdomain masquerading.
+
+            Rewrites From:, Sender:, and Reply-To: headers so that addresses from
+            subdomains appear to come from the parent domain. Useful for organizations
+            that want consistent sender domains regardless of internal host.
+            DESC
+            sed 's/^            //' desc > desc.tmp && mv desc.tmp desc
+
+            # Create the package
+            pkg_create \
+              -A "*" \
+              -B staging \
+              -D COMMENT="OpenSMTPD filter for subdomain masquerading" \
+              -D FULLPKGPATH=mail/opensmtpd-filter-masquerade \
+              -D MAINTAINER="Richard Drake <rdrake@rdrake.org>" \
+              -D HOMEPAGE="https://github.com/uoitsci/opensmtpd-filter-masquerade" \
+              -d desc \
+              -f plist \
+              -p /usr/local \
+              "${PKGNAME}.tgz"
+
+            mv "${PKGNAME}.tgz" /tmp/
+
+      - name: Copy package from VM
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          cp /tmp/opensmtpd-filter-masquerade-${VERSION}.tgz .
+
+      - name: Create source tarball
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          git archive --format=tar.gz --prefix="opensmtpd-filter-masquerade-${VERSION}/" \
+            -o "opensmtpd-filter-masquerade-${VERSION}-src.tar.gz" HEAD
+
+      - name: Create Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}.tgz
+            opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}-src.tar.gz
+          generate_release_notes: true
+
+      - name: Upload test artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-package
+          path: |
+            opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}.tgz
+            opensmtpd-filter-masquerade-${{ steps.version.outputs.VERSION }}-src.tar.gz
