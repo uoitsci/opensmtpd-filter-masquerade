@@ -29,21 +29,15 @@ jobs:
       - name: Build OpenBSD package
         uses: vmactions/openbsd-vm@v1
         with:
-          release: "7.6"
+          release: "7.8"
           usesh: true
           run: |
             set -e
             VERSION="${{ steps.version.outputs.VERSION }}"
             PKGNAME="opensmtpd-filter-masquerade-${VERSION}"
 
-            # Create staging directory with installed files
-            mkdir -p staging/libexec/smtpd
-            mkdir -p staging/man/man8
-
-            cp filter-masquerade staging/libexec/smtpd/
-            chmod 755 staging/libexec/smtpd/filter-masquerade
-            cp filter-masquerade.8 staging/man/man8/
-            chmod 644 staging/man/man8/filter-masquerade.8
+            # Install files to staging directory
+            make install DESTDIR=staging PREFIX=/usr/local
 
             # Create packing list
             printf '%s\n' \
