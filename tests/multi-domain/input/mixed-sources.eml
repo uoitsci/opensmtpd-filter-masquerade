@@ -1,0 +1,7 @@
+From: John Doe <john@host.example.com>
+Reply-To: Jane <jane@oldcompany.net>, Bob <bob@host.oldcompany.net>, External <ext@other.org>
+To: recipient@other.org
+Subject: Test mixed source domains
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Mixed addresses from target subdomain, source domain, source subdomain, and unrelated.

@@ -1,0 +1,6 @@
+From: "user@work" <john@host.example.com>
+To: recipient@other.org
+Subject: Test display name containing @
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Display name with @ should not confuse the parser.

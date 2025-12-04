@@ -1,0 +1,221 @@
+#!/bin/sh
+#
+# filter-test-harness - Test harness for OpenSMTPD filters
+#
+# Simulates the smtpd side of the filter protocol to enable
+# testing filters with raw email input/output files.
+#
+# Usage:
+#   filter-test-harness <filter-command> [test-dir]
+#
+# Test directory structure:
+#   test-dir/
+#     input/
+#       test1.eml    - Raw email input
+#       test2.eml
+#     expected/
+#       test1.eml    - Expected output after filtering
+#       test2.eml
+#
+# If test-dir is not specified, uses the directory containing this script.
+#
+# Exit codes:
+#   0 - All tests passed
+#   1 - One or more tests failed
+#   2 - Usage error
+
+set -e
+
+usage() {
+	echo "Usage: filter-test-harness <filter-command> [test-dir]" >&2
+	echo "" >&2
+	echo "Test directory structure:" >&2
+	echo "  test-dir/input/*.eml     - Raw email inputs" >&2
+	echo "  test-dir/expected/*.eml  - Expected outputs" >&2
+	echo "" >&2
+	echo "If test-dir is omitted, uses the directory containing this script." >&2
+	exit 2
+}
+
+die() {
+	echo "ERROR: $1" >&2
+	exit 1
+}
+
+if [ $# -lt 1 ]; then
+	usage
+fi
+
+FILTER_CMD="$1"
+
+# Determine test directory
+if [ $# -ge 2 ]; then
+	TEST_DIR="$2"
+else
+	# Use directory containing this script
+	TEST_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
+
+# Validate test directory structure
+[ -d "$TEST_DIR" ] || die "Test directory not found: $TEST_DIR"
+[ -d "$TEST_DIR/input" ] || die "Input directory not found: $TEST_DIR/input"
+[ -d "$TEST_DIR/expected" ] || die "Expected directory not found: $TEST_DIR/expected"
+
+# Create temp directory for test artifacts
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+# Generate a random hex session ID
+gen_session_id() {
+	od -An -tx8 -N8 /dev/urandom | tr -d ' '
+}
+
+# Generate a random hex token
+gen_token() {
+	od -An -tx8 -N8 /dev/urandom | tr -d ' '
+}
+
+# Run a single test
+# Args: $1 = input file, $2 = expected file, $3 = test name
+run_test() {
+	input_file="$1"
+	expected_file="$2"
+	test_name="$3"
+
+	# Create FIFOs for filter communication
+	filter_in="$TMPDIR/filter_in"
+	filter_out="$TMPDIR/filter_out"
+	mkfifo "$filter_in" "$filter_out"
+
+	# Start the filter
+	$FILTER_CMD < "$filter_in" > "$filter_out" 2>"$TMPDIR/filter_stderr" &
+	filter_pid=$!
+
+	# Open FIFOs (need to do this carefully to avoid blocking)
+	exec 3>"$filter_in"
+	exec 4<"$filter_out"
+
+	# Send config handshake
+	echo "config|smtpd-version|7.8.0" >&3
+	echo "config|protocol|0.7" >&3
+	echo "config|smtp-session-timeout|300" >&3
+	echo "config|subsystem|smtp-in" >&3
+	echo "config|ready" >&3
+
+	# Read registration response
+	registration_ok=0
+	while IFS= read -r line <&4; do
+		case "$line" in
+			register\|ready)
+				registration_ok=1
+				break
+				;;
+			register\|*)
+				# Filter registering for events, continue
+				;;
+			*)
+				echo "Unexpected registration line: $line" >&2
+				;;
+		esac
+	done
+
+	if [ "$registration_ok" -ne 1 ]; then
+		echo "FAIL: $test_name - Filter did not complete registration"
+		exec 3>&-
+		exec 4<&-
+		kill "$filter_pid" 2>/dev/null || true
+		wait "$filter_pid" 2>/dev/null || true
+		rm -f "$filter_in" "$filter_out"
+		return 1
+	fi
+
+	# Generate session ID and token
+	session=$(gen_session_id)
+	token=$(gen_token)
+	timestamp=$(date +%s).000000
+
+	# Send email lines as data-line filter requests
+	while IFS= read -r line || [ -n "$line" ]; do
+		echo "filter|0.7|$timestamp|smtp-in|data-line|$session|$token|$line" >&3
+	done < "$input_file"
+
+	# Send terminating dot
+	echo "filter|0.7|$timestamp|smtp-in|data-line|$session|$token|." >&3
+
+	# Collect output
+	output_file="$TMPDIR/output.eml"
+	> "$output_file"
+
+	while IFS= read -r line <&4; do
+		# Parse filter-dataline response
+		case "$line" in
+			filter-dataline\|*)
+				# Extract the content after the third |
+				# format: filter-dataline|session|token|content
+				content=$(echo "$line" | cut -d'|' -f4-)
+				if [ "$content" = "." ]; then
+					break
+				fi
+				echo "$content" >> "$output_file"
+				;;
+			*)
+				echo "Unexpected response: $line" >&2
+				;;
+		esac
+	done
+
+	# Clean up filter process
+	exec 3>&-
+	exec 4<&-
+	kill "$filter_pid" 2>/dev/null || true
+	wait "$filter_pid" 2>/dev/null || true
+	rm -f "$filter_in" "$filter_out"
+
+	# Compare output to expected
+	if diff -q "$expected_file" "$output_file" > /dev/null 2>&1; then
+		echo "PASS: $test_name"
+		return 0
+	else
+		echo "FAIL: $test_name"
+		echo "--- Expected:"
+		cat "$expected_file"
+		echo "--- Got:"
+		cat "$output_file"
+		echo "--- Diff:"
+		diff -u "$expected_file" "$output_file" || true
+		return 1
+	fi
+}
+
+# Main test loop
+passed=0
+failed=0
+total=0
+
+for input_file in "$TEST_DIR"/input/*.eml; do
+	[ -f "$input_file" ] || continue
+
+	test_name=$(basename "$input_file" .eml)
+	expected_file="$TEST_DIR/expected/$test_name.eml"
+
+	if [ ! -f "$expected_file" ]; then
+		echo "SKIP: $test_name - No expected file"
+		continue
+	fi
+
+	total=$((total + 1))
+
+	if run_test "$input_file" "$expected_file" "$test_name"; then
+		passed=$((passed + 1))
+	else
+		failed=$((failed + 1))
+	fi
+done
+
+echo ""
+echo "Results: $passed passed, $failed failed, $total total"
+
+if [ "$failed" -gt 0 ]; then
+	exit 1
+fi
+exit 0

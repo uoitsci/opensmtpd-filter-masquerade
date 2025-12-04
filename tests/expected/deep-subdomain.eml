@@ -1,0 +1,6 @@
+From: Admin <admin@example.com>
+To: recipient@other.org
+Subject: Test deep subdomain rewrite
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Deep subdomains like server.dept.example.com should also be rewritten.

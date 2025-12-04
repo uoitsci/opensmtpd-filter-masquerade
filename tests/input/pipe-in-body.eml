@@ -1,0 +1,7 @@
+From: User <user@host.example.com>
+To: recipient@other.org
+Subject: Test pipe characters in body
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+This body has | pipe | characters | that should pass through.
+Also: cmd | grep foo | wc -l

@@ -1,0 +1,6 @@
+From: Very Long Display Name That Requires Multiple Lines To Properly Format <john@example.com>
+To: recipient@other.org
+Subject: Test multi-line folded header
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Header folded across 3+ lines.

@@ -1,0 +1,226 @@
+#!/usr/bin/awk -f
+#
+# filter-masquerade - OpenSMTPD filter to rewrite sender headers
+#
+# Rewrites From:, Sender:, and Reply-To: headers to use a specified domain,
+# but ONLY for addresses that are subdomains of the target domain or
+# match/are subdomains of specified source domains.
+#
+# Usage in smtpd.conf:
+#   filter "masquerade" proc-exec "/usr/local/libexec/smtpd/filter-masquerade @example.com"
+#   filter "masquerade" proc-exec "/usr/local/libexec/smtpd/filter-masquerade @example.com oldcompany.net"
+#
+# The first argument is the target domain (must start with @).
+# Additional arguments are source domains whose addresses should also be rewritten.
+#
+# Examples with @example.com oldcompany.net:
+#   user@host.example.com -> user@example.com (subdomain of target)
+#   user@example.com      -> user@example.com (exact target, unchanged)
+#   user@host.oldcompany.net -> user@example.com (subdomain of source)
+#   user@oldcompany.net   -> user@example.com (exact source domain)
+#   user@other.org        -> user@other.org   (no match, unchanged)
+#
+# Features:
+# - Handles folded headers (continuation lines starting with whitespace)
+# - Rewrites multiple addresses in a single header
+# - Supports multiple source domains for rebranding/consolidation
+
+function rewrite_all_addresses(line, new_domain, base_domain,    result, remaining, user, addr, addr_domain, match_start) {
+	# Rewrite ALL subdomain addresses in the line
+	result = ""
+	remaining = line
+
+	# Process bracketed addresses: <user@domain>
+	while (match(remaining, /<[^@>]+@[^>]+>/)) {
+		match_start = RSTART
+		addr = substr(remaining, match_start + 1, RLENGTH - 2)
+
+		# Extract user and domain parts
+		split(addr, parts, "@")
+		user = parts[1]
+		addr_domain = parts[2]
+
+		# Add everything before this match to result (includes '<')
+		result = result substr(remaining, 1, match_start)
+
+		# Check if domain should be rewritten
+		if (should_rewrite(addr_domain)) {
+			result = result user new_domain ">"
+		} else {
+			result = result addr ">"
+		}
+
+		# Move past this match
+		remaining = substr(remaining, match_start + RLENGTH)
+	}
+	result = result remaining
+
+	# Process bare addresses (not in angle brackets)
+	remaining = result
+	result = ""
+	while (match(remaining, /[^[:space:]<>]+@[^[:space:]<>,]+/)) {
+		match_start = RSTART
+		addr = substr(remaining, match_start, RLENGTH)
+
+		# Skip if this is inside angle brackets (preceded by <)
+		if (match_start > 1 && substr(remaining, match_start - 1, 1) == "<") {
+			result = result substr(remaining, 1, match_start + RLENGTH - 1)
+			remaining = substr(remaining, match_start + RLENGTH)
+			continue
+		}
+
+		split(addr, parts, "@")
+		user = parts[1]
+		addr_domain = parts[2]
+
+		result = result substr(remaining, 1, match_start - 1)
+
+		if (should_rewrite(addr_domain)) {
+			result = result user new_domain
+		} else {
+			result = result addr
+		}
+
+		remaining = substr(remaining, match_start + RLENGTH)
+	}
+	result = result remaining
+
+	return result
+}
+
+function is_target_header(line,    lline) {
+	lline = tolower(line)
+	return (lline ~ /^from:/ || lline ~ /^sender:/ || lline ~ /^reply-to:/)
+}
+
+function should_rewrite(addr_domain,    i, src) {
+	# Check if subdomain of base_domain (but not exact match)
+	if (addr_domain != base_domain && substr(addr_domain, length(addr_domain) - length(base_domain)) == "." base_domain) {
+		return 1
+	}
+
+	# Check source domains (exact match OR subdomain)
+	for (i = 1; i <= num_source_domains; i++) {
+		src = source_domains[i]
+		if (addr_domain == src) {
+			return 1
+		}
+		if (substr(addr_domain, length(addr_domain) - length(src)) == "." src) {
+			return 1
+		}
+	}
+
+	return 0
+}
+
+function is_continuation(line) {
+	return (line ~ /^[ \t]/)
+}
+
+function flush_pending_header(session, token,    header) {
+	if (pending_header[session] != "") {
+		header = rewrite_all_addresses(pending_header[session], new_domain, base_domain)
+		print "filter-dataline|" session "|" token "|" header
+		fflush()
+		delete pending_header[session]
+	}
+}
+
+BEGIN {
+	FS = "|"
+
+	if (ARGC < 2) {
+		print "filter-masquerade: missing domain argument (e.g., @example.com)" > "/dev/stderr"
+		exit 1
+	}
+
+	new_domain = ARGV[1]
+	delete ARGV[1]
+
+	if (substr(new_domain, 1, 1) != "@") {
+		print "filter-masquerade: domain must start with @ (e.g., @example.com)" > "/dev/stderr"
+		exit 1
+	}
+
+	base_domain = substr(new_domain, 2)
+
+	# Collect additional source domains to rewrite
+	num_source_domains = 0
+	for (i = 2; i < ARGC; i++) {
+		num_source_domains++
+		source_domains[num_source_domains] = ARGV[i]
+		delete ARGV[i]
+	}
+}
+
+/^config\|ready$/ {
+	print "register|filter|smtp-in|data-line"
+	print "register|ready"
+	fflush()
+	next
+}
+
+/^config\|/ {
+	next
+}
+
+$1 == "filter" && $4 == "smtp-in" && $5 == "data-line" {
+	session = $6
+	token = $7
+
+	# Reconstruct line content (field 8+, may contain |)
+	line = ""
+	for (i = 8; i <= NF; i++) {
+		if (i > 8) line = line "|"
+		line = line $i
+	}
+
+	# End of message
+	if (line == ".") {
+		flush_pending_header(session, token)
+		delete in_body[session]
+		print "filter-dataline|" session "|" token "|."
+		fflush()
+		next
+	}
+
+	# End of headers (blank line)
+	if (line == "" && !in_body[session]) {
+		flush_pending_header(session, token)
+		in_body[session] = 1
+		print "filter-dataline|" session "|" token "|"
+		fflush()
+		next
+	}
+
+	# Process headers
+	if (!in_body[session]) {
+		if (is_continuation(line)) {
+			if (pending_header[session] != "") {
+				# Accumulate continuation (unfold by appending)
+				pending_header[session] = pending_header[session] line
+				next
+			}
+			# Orphan continuation - pass through
+		} else {
+			# New header - flush any pending header first
+			flush_pending_header(session, token)
+
+			if (is_target_header(line)) {
+				# Start accumulating this header
+				pending_header[session] = line
+				next
+			}
+		}
+	}
+
+	# Pass through body and non-target headers
+	print "filter-dataline|" session "|" token "|" line
+	fflush()
+	next
+}
+
+{
+	print
+	fflush()
+}

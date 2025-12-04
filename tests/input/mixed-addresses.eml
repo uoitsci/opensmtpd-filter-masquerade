@@ -1,0 +1,7 @@
+From: John Doe <john@host.example.com>
+Reply-To: internal@dept.example.com, external@gmail.com, other@server.example.com
+To: recipient@other.org
+Subject: Test mixed subdomain and external addresses
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Only subdomain addresses should be rewritten, external unchanged.

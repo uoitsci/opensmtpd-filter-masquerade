@@ -1,0 +1,6 @@
+From: =?UTF-8?Q?M=C3=BCller?= <john@example.com>
+To: recipient@other.org
+Subject: Test encoded display name
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+The From header has an RFC 2047 encoded display name (Müller).

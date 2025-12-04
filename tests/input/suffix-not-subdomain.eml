@@ -1,0 +1,7 @@
+From: John Doe <john@notexample.com>
+To: recipient@other.org
+Subject: Test suffix that is not a subdomain
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+notexample.com ends with example.com but is NOT a subdomain.
+This should NOT be rewritten.

@@ -1,0 +1,6 @@
+From: user@host.example.com
+To: recipient@other.org
+Subject: Test bare address rewrite
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Bare address without angle brackets should also be rewritten.

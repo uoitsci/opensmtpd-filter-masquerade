@@ -1,0 +1,6 @@
+From: John Doe (Sales Dept) <john@example.com>
+To: recipient@other.org
+Subject: Test comment in header
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+The From header has a comment in it.

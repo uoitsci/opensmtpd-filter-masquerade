@@ -1,0 +1,6 @@
+From: "O'Brien, John" <john@host.example.com>
+To: recipient@other.org
+Subject: Test quoted display name
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+The From header has a quoted display name with special chars.

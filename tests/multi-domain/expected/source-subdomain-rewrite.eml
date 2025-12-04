@@ -1,0 +1,6 @@
+From: John Doe <john@example.com>
+To: recipient@other.org
+Subject: Test source subdomain rewrite
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+This email should have From: rewritten from host.oldcompany.net to example.com.

@@ -1,0 +1,7 @@
+from: John Doe <john@example.com>
+FROM: Admin <admin@example.com>
+To: recipient@other.org
+Subject: Test case insensitive headers
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Headers should match case-insensitively.

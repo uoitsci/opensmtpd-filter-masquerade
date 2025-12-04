@@ -1,0 +1,6 @@
+From: John Doe <john@unrelated.org>
+To: recipient@other.org
+Subject: Test unrelated domain unchanged
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+This email should NOT have From: rewritten since unrelated.org is not a source domain.

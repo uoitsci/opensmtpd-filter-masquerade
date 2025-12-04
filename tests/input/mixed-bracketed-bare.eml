@@ -1,0 +1,7 @@
+From: John Doe <john@host.example.com>
+Reply-To: Name <user1@host.example.com>, user2@server.example.com
+To: recipient@other.org
+Subject: Test mixed bracketed and bare addresses
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Both bracketed and bare addresses should be rewritten.

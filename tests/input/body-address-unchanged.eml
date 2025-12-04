@@ -1,0 +1,9 @@
+From: John Doe <john@mail.example.com>
+To: recipient@other.org
+Subject: Test body unchanged
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+The header From should be rewritten, but this address in the body
+should NOT be changed: user@host.example.com
+
+Same for this: <contact@mail.example.com>

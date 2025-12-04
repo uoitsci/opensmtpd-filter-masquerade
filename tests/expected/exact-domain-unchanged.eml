@@ -1,0 +1,6 @@
+From: John Doe <john@example.com>
+To: recipient@other.org
+Subject: Test exact domain unchanged
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+This email should NOT be rewritten - it already uses the target domain.

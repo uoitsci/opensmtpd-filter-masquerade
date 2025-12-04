@@ -1,0 +1,139 @@
+.\"
+.\" Copyright (c) 2024 Richard Drake
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
+.Dd $Mdocdate: December 4 2025 $
+.Dt FILTER-MASQUERADE 8
+.Os
+.Sh NAME
+.Nm filter-masquerade
+.Nd rewrite sender headers for subdomain masquerading
+.Sh SYNOPSIS
+.Nm
+.Ar @domain
+.Op Ar source-domain ...
+.Sh DESCRIPTION
+.Nm
+is a filter for
+.Xr smtpd 8
+that rewrites
+.Dq From: ,
+.Dq Sender: ,
+and
+.Dq Reply-To:
+headers to use a specified domain.
+.Pp
+Addresses from subdomains of
+.Ar @domain
+are rewritten to use
+.Ar @domain
+directly.
+Addresses that already match
+.Ar @domain
+exactly or belong to unrelated domains are unchanged.
+.Pp
+Optional
+.Ar source-domain
+arguments specify additional domains whose addresses should be rewritten.
+Unlike the target domain, both exact matches and subdomains of source domains
+are rewritten.
+This is useful for consolidating addresses after a company rebrand or merger.
+.Pp
+Only message headers are rewritten.
+For SMTP envelope rewriting, use the
+.Ic mail-from
+option in
+.Xr smtpd.conf 5 .
+.Pp
+The arguments are as follows:
+.Bl -tag -width Ds
+.It Ar @domain
+Target domain for rewriting.
+Must include the leading
+.Sq @ .
+Subdomain addresses are rewritten to this domain.
+.It Ar source-domain
+Additional source domains to rewrite.
+Both exact matches and subdomains are rewritten to
+.Ar @domain .
+Do not include a leading
+.Sq @ .
+.El
+.Sh EXAMPLES
+Basic subdomain masquerading:
+.Bd -literal -offset indent
+filter "masquerade" proc-exec \e
+    "filter-masquerade @example.com"
+
+listen on all filter "masquerade"
+.Ed
+.Pp
+With the above configuration:
+.Bl -dash -compact
+.It
+user@mail.example.com becomes user@example.com
+.It
+user@example.com is unchanged
+.It
+user@other.org is unchanged
+.El
+.Pp
+Consolidating multiple domains after a rebrand:
+.Bd -literal -offset indent
+filter "masquerade" proc-exec \e
+    "filter-masquerade @newcorp.com oldcorp.net legacy.org"
+
+listen on all filter "masquerade"
+.Ed
+.Pp
+With the above configuration:
+.Bl -dash -compact
+.It
+user@mail.newcorp.com becomes user@newcorp.com
+.It
+user@oldcorp.net becomes user@newcorp.com
+.It
+user@host.legacy.org becomes user@newcorp.com
+.It
+user@unrelated.com is unchanged
+.El
+.Pp
+Combined header and envelope rewriting:
+.Bd -literal -offset indent
+filter "masquerade" proc-exec \e
+    "filter-masquerade @example.com"
+
+action "relay" relay host smtp://relay.example.com \e
+    mail-from "@example.com"
+
+listen on egress filter "masquerade"
+
+match from local for any action "relay"
+.Ed
+.Sh SEE ALSO
+.Xr smtpd.conf 5 ,
+.Xr smtpd-filters 7 ,
+.Xr smtpd 8
+.Sh HISTORY
+.Nm
+was written in 2024.
+.Sh CAVEATS
+.Nm
+handles folded headers and multiple addresses per header.
+Display names and comments are preserved.
+.Pp
+Deep subdomains are supported;
+user@a.b.c.example.com is rewritten to user@example.com.
+.Pp
+Domain matching is case-sensitive.

@@ -1,0 +1,7 @@
+From: John Doe <john@example.com>
+Reply-To: support@example.com, feedback@example.com
+To: recipient@other.org
+Subject: Test multiple Reply-To addresses
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Multiple Reply-To addresses should all be rewritten.

@@ -1,0 +1,7 @@
+From: John Doe <john@example.com>
+Reply-To: Support Team <support@example.com>
+To: recipient@other.org
+Subject: Test folded Reply-To
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+Reply-To header is folded and should still be rewritten.

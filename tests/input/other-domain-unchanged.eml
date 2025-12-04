@@ -1,0 +1,6 @@
+From: External User <user@otherdomain.org>
+To: recipient@example.com
+Subject: Test other domain unchanged
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+This email from an external domain should pass through unchanged.

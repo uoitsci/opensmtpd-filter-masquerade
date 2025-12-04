@@ -1,0 +1,8 @@
+From: John Doe <john@example.com>
+Sender: Admin <admin@example.com>
+Reply-To: Support <support@example.com>
+To: recipient@other.org
+Subject: Test multiple header rewrite
+Date: Mon, 1 Jan 2024 12:00:00 +0000
+
+All three sender-related headers should be rewritten.
