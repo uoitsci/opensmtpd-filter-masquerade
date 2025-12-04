@@ -40,11 +40,11 @@ jobs:
             make install DESTDIR=staging PREFIX=/usr/local
 
             # Create packing list
-            cat > plist <<'EOF'
-@comment $OpenBSD$
-libexec/smtpd/filter-masquerade
-man/man8/filter-masquerade.8
-EOF
+            printf '%s\n' \
+              '@comment $OpenBSD$' \
+              'libexec/smtpd/filter-masquerade' \
+              'man/man8/filter-masquerade.8' \
+              > plist
 
             # Create description file
             cat > desc <<'DESC'
