@@ -75,6 +75,13 @@ jobs:
           git archive --format=tar.gz --prefix="opensmtpd-filter-masquerade-${VERSION}/" \
             -o "opensmtpd-filter-masquerade-${VERSION}-src.tar.gz" HEAD
 
+      - name: Verify package exists
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "Checking for package files..."
+          ls -la
+          ls -la "opensmtpd-filter-masquerade-${VERSION}.tgz"
+
       - name: Prepare GitHub Pages
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
